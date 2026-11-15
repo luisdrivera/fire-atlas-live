@@ -987,7 +987,7 @@ function renderBurningCalendar() {
 
   const regTitle = region === 'ALL' ? 'Whole Caribbean' : (REGION_LABELS[region] || region);
   document.getElementById('seasonalSummaryText').innerHTML =
-    `In <strong>${regTitle}</strong>, <strong>${drySeasonShare}%</strong> of annual activity is concentrated between <strong>January and April</strong>, reaching its critical peak in <strong>${MONTHS_ES[peakIdx]}</strong> (Median: ${p50Arr[peakIdx].toLocaleString('en-US')} | Extreme P90 threshold: ${p90Arr[peakIdx].toLocaleString('en-US')}) and its minimum in <strong>${MONTHS_ES[lowIdx]}</strong> (${p50Arr[lowIdx].toLocaleString('en-US')}).`;
+    `In <strong>${regTitle}</strong>, <strong>${drySeasonShare}%</strong> of annual activity is concentrated between <strong>January and April</strong>, reaching its peak in <strong>${MONTHS_ES[peakIdx]}</strong> (Median: ${p50Arr[peakIdx].toLocaleString('en-US')} | Extreme P90 threshold: ${p90Arr[peakIdx].toLocaleString('en-US')}) and its minimum in <strong>${MONTHS_ES[lowIdx]}</strong> (${p50Arr[lowIdx].toLocaleString('en-US')}).`;
 }
 
 function exportCalendarCSV() {

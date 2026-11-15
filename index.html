@@ -238,10 +238,10 @@
         <div>
           <div class="flex items-center gap-2">
             <span class="text-amber-400 text-lg">📅</span>
-            <h2 class="text-base md:text-lg font-bold text-white">Harmonized Burning Activity Calendar and Seasonal Forecast (2000–2026)</h2>
+            <h2 class="text-base md:text-lg font-bold text-white">Harmonized Burning Activity Calendar and Seasonal Pattern (2000–2026)</h2>
           </div>
           <p class="text-xs text-slate-400 mt-0.5">
-            Multi-year visualization to identify critical risk windows by country. Click any year to compare it against the historical forecast curve.
+            Multi-year visualization to identify high-activity windows by country. Click any year to compare it against the historical curve.
           </p>
         </div>
 
@@ -274,16 +274,16 @@
         <!-- Curva Climatológica Predictiva (5 cols) -->
         <div class="lg:col-span-5 flex flex-col justify-between space-y-4">
           <div>
-            <h3 class="text-sm font-bold text-white">Predictive Climate Corridor (P25–P90 Percentiles)</h3>
+            <h3 class="text-sm font-bold text-white">Historical Climate Corridor (P25–P90 Percentiles)</h3>
             <p class="text-xs text-slate-400 mb-2">
-              Expected risk band by month compared with the selected year (<span id="selectedYearLabel" class="text-amber-400 font-bold">2026</span>).
+              Historical band by month compared with the selected year (<span id="selectedYearLabel" class="text-amber-400 font-bold">2026</span>).
             </p>
             <div id="seasonalClimatologyChart" style="width: 100%; height: 295px;"></div>
           </div>
 
           <!-- Tarjeta de Ventana Crítica Detectada para el País Seleccionado -->
           <div id="seasonalPredictionBox" class="bg-slate-900/95 border border-amber-500/30 rounded-xl p-3.5 text-xs space-y-1.5">
-            <p class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">Seasonal Forecast by Territory</p>
+            <p class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">Seasonal Pattern by Territory</p>
             <p id="seasonalSummaryText" class="text-slate-300 leading-relaxed">Calculating seasonal patterns...</p>
           </div>
         </div>
