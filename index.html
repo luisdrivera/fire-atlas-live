@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Fire Atlas | Harmonized Fire Monitoring and Alert Platform (NASA FIRMS)</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Apache ECharts 5 -->
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- Leaflet Draw CSS & JS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <style>
+    body { background-color: #090d16; color: #f1f5f9; font-family: system-ui, -apple-system, sans-serif; }
+    .glass-card { background: #111827; border: 1px solid #1e293b; border-radius: 0.85rem; }
+    .mode-btn.active { background-color: #f59e0b; color: #090d16; font-weight: 700; }
+    .tab-btn.active { border-bottom: 2px solid #f59e0b; color: #fbbf24; font-weight: 700; }
+    #liveMap { height: 470px; width: 100%; border-radius: 0.65rem; z-index: 1; }
+    .leaflet-container { background: #0b1120; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+  <!-- Barra Superior -->
+  <header class="border-b border-slate-800 bg-slate-950/95 sticky top-0 z-50 px-4 md:px-6 py-3.5 backdrop-blur">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 via-orange-500 to-amber-400 flex items-center justify-center font-black text-slate-950 text-lg shadow-lg shrink-0">
+          FA
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-lg md:text-xl font-extrabold text-white tracking-tight">Fire Atlas</h1>
+            <span class="text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-full">
+              NASA Space Apps 2026
+            </span>
+            <span id="statusBadge" class="text-[11px] font-medium bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-full">
+              Initializing...
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">Harmonized Satellite Intelligence (MODIS + VIIRS) and Monitoring in the Caribbean</p>
+        </div>
+      </div>
+
+      <!-- Selector Global de Territorio -->
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="flex items-center gap-2">
+          <label for="regionSelect" class="text-xs font-semibold text-slate-400 uppercase">Territory:</label>
+          <select id="regionSelect" class="bg-slate-900 border border-slate-700 text-white text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-amber-400">
+            <option value="ALL">Whole Caribbean</option>
+            <option value="República Dominicana" selected>Dominican Republic</option>
+            <option value="Cuba">Cuba</option>
+            <option value="Haití">Haiti</option>
+            <option value="Jamaica">Jamaica</option>
+            <option value="Bahamas y Turcas y Caicos">Bahamas and Turks and Caicos</option>
+            <option value="Antillas Menores">Lesser Antilles</option>
+            <option value="Puerto Rico e I. Vírgenes">Puerto Rico and U.S./British Virgin Islands</option>
+            <option value="Caribe Sur (ABC)">Southern Caribbean (ABC)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <details class="max-w-7xl w-full mx-auto px-4 md:px-6 pt-3 text-xs text-slate-400">
+    <summary class="cursor-pointer text-slate-300 font-semibold">Method &amp; limitations</summary>
+    <div class="mt-3 space-y-3">
+      <div>
+        <h2 class="font-semibold text-slate-300">Method</h2>
+        <ul class="list-disc pl-5">
+          <li>Data: NASA FIRMS active-fire detections (MODIS and VIIRS) for the Caribbean. Low-confidence detections are excluded.</li>
+          <li>Before 2012: monthly MODIS counts are multiplied by a per-territory calibration factor (shown on screen for each territory).</li>
+          <li>From 2012: MODIS and VIIRS detections are fused and de-duplicated.</li>
+          <li>Live mode: queries NASA FIRMS near-real-time data and fuses sensors by de-duplicating detections at roughly 1 km and one day. This is de-duplication, not calibration. Live detections are kept only within about 0.2 degrees of cells where the historical record has detections for the selected territory, so live and historical counts cover the same area; fires in places with no historical detections are not shown.</li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="font-semibold text-slate-300">Limitations</h2>
+        <ul class="list-disc pl-5">
+          <li>The series changes definition in 2012 (scaled MODIS before, fused MODIS + VIIRS after), so long-term trends across that year should be read with caution.</li>
+          <li>The reported correlation (r = 0.9923) is computed on monthly totals during the overlap period. Seasonality inflates monthly correlations, and it is not an out-of-sample test.</li>
+          <li>One factor per territory is used. It does not separate day from night and has not been tested on held-out data.</li>
+          <li>Counts are satellite detections, not individual fires.</li>
+          <li>Alert levels compare the current rate with the historical distribution for the same month. They are not forecasts.</li>
+          <li>"Simulate Alert" generates synthetic data for demonstration only.</li>
+        </ul>
+      </div>
+      <p>For an independent validation study (La Española and Mato Grosso, trained 2018-2022, tested on 2023-2024), see <a href="https://fire-atlas-nu.vercel.app/" target="_blank" rel="noopener noreferrer" class="text-amber-400 underline">https://fire-atlas-nu.vercel.app/</a></p>
+    </div>
+  </details>
+
+  <main class="max-w-7xl w-full mx-auto px-4 md:px-6 py-6 space-y-6 flex-1">
+
+    <!-- ===================================================================== -->
+    <!-- PARTE 2: MAPA EN TIEMPO REAL + ANÁLISIS DE PATRONES Y ALERTA FUTURA   -->
+    <!-- ===================================================================== -->
+    <section class="glass-card p-4 md:p-5 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+            <h2 class="text-base md:text-lg font-bold text-white">Real-Time Satellite Monitor (NASA FIRMS)</h2>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Live fusion of NASA/NOAA constellations. Draw a rectangle or polygon on the map to analyze a specific area.
+          </p>
+        </div>
+
+        <!-- Controles API NASA FIRMS -->
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <input type="hidden" id="firmsKeyInput" value="" title="Your NASA FIRMS MAP_KEY"
+                 class="w-36 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-slate-300 focus:outline-none focus:border-amber-400" />
+          <select id="liveSensorSelect" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white">
+            <option value="FUSED_ALL" selected>VIIRS + MODIS Fusion (Live)</option>
+            <option value="VIIRS_SNPP_NRT">VIIRS Suomi-NPP (375m)</option>
+            <option value="VIIRS_NOAA20_NRT">VIIRS NOAA-20 (375m)</option>
+            <option value="VIIRS_NOAA21_NRT">VIIRS NOAA-21 (375m)</option>
+            <option value="MODIS_NRT">MODIS Terra/Aqua (1km)</option>
+          </select>
+          <select id="liveDaysSelect" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white">
+            <option value="1">Last 24 hours</option>
+            <option value="2" selected>Last 48 hours</option>
+            <option value="5">Last 5 days</option>
+          </select>
+          <button id="btnRefreshLive" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3.5 py-1.5 rounded-lg transition shadow">
+            ↻ Refresh Satellites
+          </button>
+          <button id="btnSimulateAlert" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg transition" title="Simulate a high-activity scenario for demonstration">
+            Simulate Alert
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid Principal: Mapa (7 cols) + Panel de Análisis y Predicción (5 cols) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+        <!-- Columna Izquierda: Mapa Interactivo -->
+        <div class="lg:col-span-7 flex flex-col space-y-2.5">
+          <div class="flex flex-wrap items-center justify-between gap-2 text-xs bg-slate-900/90 border border-slate-800 px-3 py-2 rounded-lg">
+            <div class="flex flex-wrap items-center gap-3">
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-200">
+                <input type="checkbox" id="chkLiveLayer" checked class="accent-amber-500" />
+                <span>Active NASA Hotspots (<span id="liveCountBadge" class="font-bold text-amber-400">0</span>)</span>
+              </label>
+              <label class="inline-flex items-center gap-1.5 cursor-pointer text-slate-300">
+                <input type="checkbox" id="chkHistLayer" checked class="accent-sky-500" />
+                <span>Historical Recurrence 2000–2026</span>
+              </label>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="polyStatus" class="text-slate-400">Area: Entire territory</span>
+              <button id="btnClearPoly" class="hidden text-rose-400 hover:text-rose-300 font-semibold underline">Remove polygon</button>
+            </div>
+          </div>
+
+          <div id="liveMap"></div>
+
+          <!-- Leyenda del Mapa -->
+          <div class="flex flex-wrap items-center justify-between text-[11px] text-slate-400 px-1 gap-2">
+            <div class="flex items-center gap-3">
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"></span> FRP &lt; 15 MW (Low-intensity burning)</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block"></span> 15–50 MW (Moderate)</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-600 inline-block"></span> &gt; 50 MW (Severe)</span>
+              <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-sky-500/40 border border-sky-400 inline-block"></span> 27-year history</span>
+            </div>
+            <span id="liveTimestamp" class="text-slate-500">Connecting to NASA FIRMS...</span>
+          </div>
+        </div>
+
+        <!-- Columna Derecha: Motor de Análisis de Patrones, Predicción y Recomendaciones -->
+        <div class="lg:col-span-5 flex flex-col justify-between space-y-4">
+
+          <!-- Tarjeta de Predicción y Semáforo de Alerta Futura -->
+          <div id="alertCard" class="rounded-xl border border-emerald-500/40 bg-emerald-950/20 p-4 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-bold uppercase tracking-wider text-slate-300">Historical Comparison (not a forecast)</span>
+              <span id="alertBadge" class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                ANALYZING...
+              </span>
+            </div>
+            <p id="alertHeadline" class="text-sm font-bold text-white">Evaluating detection rate against the historical median...</p>
+            <p id="alertForecastText" class="text-xs text-slate-300 leading-relaxed">
+              Comparing recent activity against climate percentiles (P50, P75, P90) from the last 25 years.
+            </p>
+            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800/80 text-center">
+              <div class="bg-slate-900/80 rounded-lg p-2">
+                <p class="text-[10px] text-slate-400 uppercase">1 km Fronts</p>
+                <p id="statHarmLive" class="text-base font-extrabold text-white">—</p>
+              </div>
+              <div class="bg-slate-900/80 rounded-lg p-2">
+                <p class="text-[10px] text-slate-400 uppercase">Max / Avg FRP</p>
+                <p id="statFrpLive" class="text-base font-extrabold text-amber-400">—</p>
+              </div>
+              <div class="bg-slate-900/80 rounded-lg p-2">
+                <p class="text-[10px] text-slate-400 uppercase">Nighttime Hotspots</p>
+                <p id="statNightPct" class="text-base font-extrabold text-sky-400">—</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Diagnóstico de Patrones Detectados en Tiempo Real -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 space-y-1.5">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-amber-400">Real-Time Pattern Analysis</h3>
+            <ul id="patternInsightsList" class="text-xs text-slate-300 space-y-1.5 list-disc pl-4">
+              <li>Loading satellite telemetry...</li>
+            </ul>
+          </div>
+
+          <!-- Panel de Recomendaciones por Perfil (Agricultores, Bomberos, Comunidades) -->
+          <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex-1 flex flex-col">
+            <p class="text-[10px] text-slate-400 mb-2">General awareness guidance only. It is not derived from this project's data and has not been validated. Follow your local authorities.</p>
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5">
+              <span class="text-xs font-bold uppercase tracking-wider text-white">Operational Recommendations</span>
+              <div class="flex gap-3 text-xs">
+                <button data-role="farmers" class="tab-btn active pb-1 transition">Farmers</button>
+                <button data-role="responders" class="tab-btn text-slate-400 pb-1 transition">Firefighters/Management</button>
+                <button data-role="public" class="tab-btn text-slate-400 pb-1 transition">Community</button>
+              </div>
+            </div>
+            <div id="recommendationsBody" class="text-xs text-slate-300 space-y-2 leading-relaxed flex-1">
+              Generating prevention protocol...
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- PARTE 3: CALENDARIO DE ACTIVIDAD DE QUEMAS Y PATRÓN ESTACIONAL        -->
+    <!-- ===================================================================== -->
+    <section class="glass-card p-4 md:p-5 space-y-5">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3.5">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-amber-400 text-lg">📅</span>
+            <h2 class="text-base md:text-lg font-bold text-white">Harmonized Burning Activity Calendar and Seasonal Forecast (2000–2026)</h2>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Multi-year visualization to identify critical risk windows by country. Click any year to compare it against the historical forecast curve.
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 text-xs">
+          <label for="calendarPalette" class="text-slate-400 font-semibold">Palette:</label>
+          <select id="calendarPalette" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white">
+            <option value="ylorrd" selected>YlOrRd (Fire)</option>
+            <option value="viridis">Viridis (Color-blind friendly)</option>
+            <option value="magma">Magma (Thermal)</option>
+          </select>
+
+          <label for="calendarCompareYear" class="text-slate-400 font-semibold ml-1">Year on curve:</label>
+          <select id="calendarCompareYear" class="bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white"></select>
+
+          <button id="btnExportCalendarCSV" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3 py-1.5 rounded-lg transition shadow ml-1">
+            ⬇ Export Calendar CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Matriz Heatmap Año x Mes (7 cols) -->
+        <div class="lg:col-span-7 flex flex-col">
+          <div id="burnCalendarChart" style="width: 100%; height: 460px;"></div>
+          <p class="text-[11px] text-slate-500 mt-1">
+            * Transition line in 2012: 2000–2011 (Calibrated MODIS C6.1) | 2012–2026 (Direct MODIS + VIIRS Fusion 1 km × 1 day).
+          </p>
+        </div>
+
+        <!-- Curva Climatológica Predictiva (5 cols) -->
+        <div class="lg:col-span-5 flex flex-col justify-between space-y-4">
+          <div>
+            <h3 class="text-sm font-bold text-white">Predictive Climate Corridor (P25–P90 Percentiles)</h3>
+            <p class="text-xs text-slate-400 mb-2">
+              Expected risk band by month compared with the selected year (<span id="selectedYearLabel" class="text-amber-400 font-bold">2026</span>).
+            </p>
+            <div id="seasonalClimatologyChart" style="width: 100%; height: 295px;"></div>
+          </div>
+
+          <!-- Tarjeta de Ventana Crítica Detectada para el País Seleccionado -->
+          <div id="seasonalPredictionBox" class="bg-slate-900/95 border border-amber-500/30 rounded-xl p-3.5 text-xs space-y-1.5">
+            <p class="font-bold text-amber-400 uppercase tracking-wider text-[11px]">Seasonal Forecast by Territory</p>
+            <p id="seasonalSummaryText" class="text-slate-300 leading-relaxed">Calculating seasonal patterns...</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- PARTE 1: MOTOR DE ARMONIZACIÓN HISTÓRICA (2000–2026)                  -->
+    <!-- ===================================================================== -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="glass-card p-4">
+        <span class="text-[11px] font-semibold uppercase text-slate-400">Raw MODIS Detections (1 km)</span>
+        <p id="kpiModisRaw" class="text-2xl font-extrabold text-sky-400 mt-1">—</p>
+        <p class="text-xs text-slate-500 mt-1">Terra & Aqua (2000–2026)</p>
+      </div>
+
+      <div class="glass-card p-4">
+        <span class="text-[11px] font-semibold uppercase text-slate-400">Raw VIIRS Detections (375 m)</span>
+        <p id="kpiViirsRaw" class="text-2xl font-extrabold text-amber-400 mt-1">—</p>
+        <p class="text-xs text-slate-500 mt-1">Suomi NPP (2012–2026)</p>
+      </div>
+
+      <div class="glass-card p-4">
+        <span class="text-[11px] font-semibold uppercase text-slate-400">Unharmonized Bias (2012 Jump)</span>
+        <p id="kpiRawJump" class="text-2xl font-extrabold text-rose-400 mt-1">—</p>
+        <p class="text-xs text-slate-500 mt-1">Distortion due to sensor change</p>
+      </div>
+
+      <div class="glass-card p-4">
+        <span class="text-[11px] font-semibold uppercase text-slate-400">Harmonized Events (1 km × 1 day)</span>
+        <p id="kpiHarmonized" class="text-2xl font-extrabold text-emerald-400 mt-1">—</p>
+        <p id="kpiCalFactor" class="text-xs text-slate-400 mt-1">Calibration factor: —</p>
+      </div>
+    </section>
+
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="glass-card p-5 lg:col-span-8 flex flex-col">
+        <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <h2 class="text-base font-bold text-white">Harmonization Simulator: Before vs. After (2000–2026)</h2>
+            <p class="text-xs text-slate-400">Switch views to demonstrate how the artificial 2012 jump is corrected.</p>
+          </div>
+
+          <div class="flex items-center gap-1 bg-slate-900 p-1 rounded-lg border border-slate-800 text-xs">
+            <button data-mode="comparison" class="mode-btn active px-3 py-1.5 rounded-md transition">Compare Both</button>
+            <button data-mode="unharmonized" class="mode-btn px-3 py-1.5 rounded-md text-slate-300 transition">Unharmonized (Raw)</button>
+            <button data-mode="harmonized" class="mode-btn px-3 py-1.5 rounded-md text-slate-300 transition">Harmonized Series</button>
+          </div>
+        </div>
+
+        <div id="harmonizationChart" style="width: 100%; height: 350px;"></div>
+      </div>
+
+      <div class="glass-card p-5 lg:col-span-4 flex flex-col">
+        <h2 class="text-base font-bold text-white">Cross-Calibration (2012–2026)</h2>
+        <p class="text-xs text-slate-400 mb-3">Monthly correlation of MODIS vs. Harmonized Events during the overlapping period.</p>
+        <div id="scatterChart" style="width: 100%; height: 350px;"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-slate-800 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500">
+    Fire Atlas — NASA Space Apps Challenge 2026 | Harmonization of MODIS and VIIRS Hot Spots
+  </footer>
+
+  <script src="caribe_data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
